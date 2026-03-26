@@ -1,0 +1,40 @@
+name: Apply MongoDB Schema Validation
+
+# Only runs when .avsc files in schemas/ are changed on main branch
+on:
+  push:
+    branches: [main]
+    paths:
+      - "schemas/*.avsc"
+
+jobs:
+  apply-schema:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Convert Avro schemas to MongoDB validators
+        run: |
+          for schema in schemas/*.avsc; do
+            echo "Converting: $schema"
+            node scripts/avro-to-mongo-validator.js "$schema"
+          done
+
+      - name: Apply validators to MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          for validator in generated/*-validator.json; do
+            echo "Applying: $validator"
+            node scripts/apply-schema.js "$validator" "schema_governance_demo"
+          done

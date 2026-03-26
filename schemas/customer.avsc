@@ -1,0 +1,79 @@
+{
+  "type": "record",
+  "name": "Customer",
+  "namespace": "com.natwest.customer",
+  "doc": "Schema for FSI customer documents - v2 (added KYC status)",
+  "fields": [
+    {
+      "name": "firstName",
+      "type": "string",
+      "doc": "Customer's first name"
+    },
+    {
+      "name": "lastName",
+      "type": "string",
+      "doc": "Customer's last name"
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "doc": "Customer's email address"
+    },
+    {
+      "name": "accountType",
+      "type": {
+        "type": "enum",
+        "name": "AccountType",
+        "symbols": [
+          "SAVINGS",
+          "CURRENT",
+          "ISA"
+        ]
+      },
+      "doc": "Type of bank account"
+    },
+    {
+      "name": "balance",
+      "type": "double",
+      "doc": "Current account balance"
+    },
+    {
+      "name": "address",
+      "type": {
+        "type": "record",
+        "name": "Address",
+        "fields": [
+          {
+            "name": "line1",
+            "type": "string",
+            "doc": "Street address"
+          },
+          {
+            "name": "city",
+            "type": "string",
+            "doc": "City"
+          },
+          {
+            "name": "postcode",
+            "type": "string",
+            "doc": "Postcode"
+          }
+        ]
+      },
+      "doc": "Customer's address"
+    },
+    {
+      "name": "kycStatus",
+      "type": {
+        "type": "enum",
+        "name": "KYCStatus",
+        "symbols": [
+          "PENDING",
+          "VERIFIED",
+          "REJECTED"
+        ]
+      },
+      "doc": "Know Your Customer verification status"
+    }
+  ]
+}
