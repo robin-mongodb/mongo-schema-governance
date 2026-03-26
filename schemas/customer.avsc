@@ -24,11 +24,7 @@
       "type": {
         "type": "enum",
         "name": "AccountType",
-        "symbols": [
-          "SAVINGS",
-          "CURRENT",
-          "ISA"
-        ]
+        "symbols": ["SAVINGS", "CURRENT", "ISA"]
       },
       "doc": "Type of bank account"
     },
@@ -67,13 +63,14 @@
       "type": {
         "type": "enum",
         "name": "KYCStatus",
-        "symbols": [
-          "PENDING",
-          "VERIFIED",
-          "REJECTED"
-        ]
+        "symbols": ["PENDING", "VERIFIED", "REJECTED"]
       },
       "doc": "Know Your Customer verification status"
+    },
+    {
+      "name": "branch",
+      "type": "string",
+      "doc": "Branch where customer's account exists."
     }
   ]
 }
