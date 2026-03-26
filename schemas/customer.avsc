@@ -71,6 +71,21 @@
       "name": "branch",
       "type": "string",
       "doc": "Branch where customer's account exists."
+    },
+    {
+      "name": "gender",
+      "type": {
+        "type": "enum",
+        "name": "Gender",
+        "symbols": [
+          "Male",
+          "Female",
+          "Non-binary",
+          "Do not want to disclose",
+          "Others"
+        ]
+      },
+      "doc": "Gender of the cusotmer"
     }
   ]
 }
