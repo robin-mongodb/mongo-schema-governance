@@ -1,0 +1,247 @@
+# Specify Validation for Polymorphic Collections
+
+You can specify schema validation for a collection that stores [polymorphic data](https://mongodbcom-cdn.staging.corp.mongodb.com/docs/data-modeling/design-patterns/polymorphic-data/#std-label-polymorphic-data), or documents with varying structures or schemas.
+
+To create schema validation for multiple schemas within a single collection, you can set the schemas in your validation rules and ensure that documents conform to one of your collection's schemas.
+
+## About this Task
+
+Consider a collection, `accounts`, that stores data on customers of a bank and their account details. The collection contains both `customer` documents and `account` documents.
+
+The following code inserts two `customer` documents into the `accounts` collection to store the details of customers Andrew and Anne, respectively. It also inserts two `account` documents to represent each of their individual savings accounts and a third `account` document to represent their shared checking account. You can run the code for this tutorial in the [MongoDB Shell (mongosh)](https://www.mongodb.com/docs/mongodb-shell/).
+
+```javascript
+db.accounts.insertMany([
+  {
+    customerId: "CUST-123456789",
+    docType: "customer",
+    name: {
+      title: "Mr",
+      first: "Andrew",
+      middle: "James",
+      last: "Morgan",
+    },
+    address: {
+      street1: "240 Blackfriars Rd",
+      city: "London",
+      postCode: "SE1 8NW",
+      country: "UK",
+    },
+    customerSince: ISODate("2005-05-20"),
+  },
+  {
+    customerId: "CUST-987654321",
+    docType: "customer",
+    name: {
+      title: "Mrs",
+      first: "Anne",
+      last: "Morgan",
+    },
+    address: {
+      street1: "240 Blackfriars Rd",
+      city: "London",
+      postCode: "SE1 8NW",
+      country: "UK",
+    },
+    customerSince: ISODate("2003-12-01"),
+  },
+  {
+    accountNumber: "ACC1000000654",
+    docType: "account",
+    accountType: "checking",
+    customerId: ["CUST-123456789", "CUST-987654321"],
+    dateOpened: ISODate("2003-12-01"),
+    balance: Decimal128("5067.65"),
+  },
+  {
+    accountNumber: "ACC1000000432",
+    docType: "account",
+    accountType: "savings",
+    customerId: ["CUST-123456789"],
+    dateOpened: ISODate("2005-10-28"),
+    balance: Decimal128("10341.21"),
+  },
+  {
+    accountNumber: "ACC1000000890",
+    docType: "account",
+    accountType: "savings",
+    customerId: ["CUST-987654321"],
+    dateOpened: ISODate("2003-12-15"),
+    balance: Decimal128("10341.89"),
+  },
+]);
+```
+
+To only allow documents that adhere to the `customer` or `account` schemas into the `accounts` collection, set up schema validation using the following procedure.
+
+## Steps
+
+### Create a JSON schema definition for each type of document
+
+To distinguish between different types of documents, you can use multiple JSON schemas. To define what attributes need to be in a document and what data types they accept, create two schemas: one for a `customer` document, and one for an `account` document. Each schema includes a `docType` attribute to identify which type of entity it represents.
+
+```javascript
+const customerSchema = {
+  required: ["docType", "customerId", "name", "customerSince"],
+  properties: {
+    docType: { enum: ["customer"] },
+    customerId: { bsonType: "string" },
+    name: {
+      bsonType: "object",
+      required: ["first", "last"],
+      properties: {
+        title: { enum: ["Mr", "Mrs", "Ms", "Dr"] },
+        first: { bsonType: "string" },
+        middle: { bsonType: "string" },
+        last: { bsonType: "string" },
+      },
+    },
+    address: {
+      bsonType: "object",
+      required: ["street1", "city", "postCode", "country"],
+      properties: {
+        street1: { bsonType: "string" },
+        street2: { bsonType: "string" },
+        postCode: { bsonType: "string" },
+        country: { bsonType: "string" },
+      },
+    },
+    customerSince: {
+      bsonType: "date",
+    },
+  },
+};
+
+const accountSchema = {
+  required: [
+    "docType",
+    "accountNumber",
+    "accountType",
+    "customerId",
+    "dateOpened",
+    "balance",
+  ],
+  properties: {
+    docType: { enum: ["account"] },
+    accountNumber: { bsonType: "string" },
+    accountType: { enum: ["checking", "savings", "mortgage", "loan"] },
+    customerId: { bsonType: "array" },
+    dateOpened: { bsonType: "date" },
+    balance: { bsonType: "decimal" },
+  },
+};
+```
+
+### Configure the collection to only accept the appropriate documents
+
+To allow documents that match either the `customerSchema` or the `accountSchema`, use the `oneOf` JSON schema operator. Then, use the [`collMod`](https://mongodbcom-cdn.staging.corp.mongodb.com/docs/reference/command/collMod/#mongodb-dbcommand-dbcmd.collMod) command to update the `accounts` collection to use to your schema validation.
+
+```javascript
+db.runCommand({
+  collMod: "accounts",
+  validator: { $jsonSchema: { oneOf: [customerSchema, accountSchema] } },
+});
+```
+
+### Add extra semantic validations
+
+You can optionally add extra semantic validations. For example, you can add the following constraints to your collection’s documents:
+
+- For `customer` documents, the `customerSince` value can't be any earlier than the current time.
+
+- For `account` documents, the `dateOpened` value can't be any earlier than the current time.
+
+- For savings accounts, the `balance` can't fall below zero.
+
+You can implement the extra validations by identifying invalid `customer` and `account` documents and implementing those constraints into your schema validation.
+
+```javascript
+const invalidCustomer = {
+  $expr: { $gt: ["$customerSince", "$$NOW"] },
+};
+
+const invalidAccount = {
+  $or: [
+    {
+      accountType: "savings",
+      balance: { $lt: 0 },
+    },
+    {
+      $expr: { $gt: ["$dateOpened", "$$NOW"] },
+    },
+  ],
+};
+```
+
+```javascript
+const schemaValidation = {
+  $and: [
+    { $jsonSchema: { oneOf: [customerSchema, accountSchema] } },
+    { $nor: [invalidCustomer, invalidAccount] },
+  ],
+};
+
+db.runCommand({
+  collMod: "accounts",
+  validator: schemaValidation,
+});
+```
+
+### Verify the documents in your collection
+
+To verify that all the documents already in your collection adhere to your new schema validation, use the [`db.collection.validate()`](https://mongodbcom-cdn.staging.corp.mongodb.com/docs/reference/method/db.collection.validate/#mongodb-method-db.collection.validate) command.
+
+```javascript
+db.accounts.validate();
+```
+
+```json
+{
+   ns: '66cf8508e64dbb03ce45b30e_test.accounts',
+   uuid: UUID('1aedf62a-f202-4e7c-b434-879057bb6d6b'),
+   nInvalidDocuments: 0,
+   nNonCompliantDocuments: 0,
+   nrecords: 10,
+   nIndexes: 1,
+   keysPerIndex: { _id_: 10 },
+   indexDetails: { _id_: { valid: true } },
+   valid: true,
+   repaired: false,
+   readTimestamp: Timestamp({ t: 1749235730, i: 26 }),
+   warnings: [],
+   errors: [],
+   extraIndexEntries: [],
+   missingIndexEntries: [],
+   corruptRecords: [],
+   ok: 1,
+   '$clusterTime': {
+      clusterTime: Timestamp({ t: 1749235753, i: 31 }),
+      signature: {
+         hash: Binary.createFromBase64('3h7qyhLsgU21Pnzf/KVLl8suu2I=', 0),
+         keyId: Long('7449048397505364002')
+      }
+   },
+   operationTime: Timestamp({ t: 1749235753, i: 31 })
+}
+```
+
+`nNonCompliantDocuments: 0` in the output indicates that all the documents in the `accounts` collection comply with the collection schemas.
+
+### Test your schema validation
+
+To verify your schema validation, you can try to insert an invalid document into the `accounts` collection. For example, try inserting a `customer` document missing the required `last` field, for last name:
+
+```javascript
+db.accounts.insertOne({
+  docType: "customer",
+  customerId: "12345",
+  name: {
+    first: "John",
+  },
+  customerSince: "2025-01-01T00:00:00Z",
+});
+```
+
+```json
+MongoServerError: Document failed validation
+```

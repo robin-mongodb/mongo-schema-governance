@@ -2,17 +2,42 @@
   "type": "record",
   "name": "BankAccount",
   "namespace": "com.natwest.account",
-  "doc": "Bank account schema with conditional fields based on account type (Savings, Current, ISA)",
+
+  // This schema uses a POLYMORPHIC pattern — multiple document shapes live in
+  // the same collection (bank_account), distinguished by the `accountType` field.
+  //
+  // How conditional validation works:
+  //   Each account type (SAVINGS, CURRENT, ISA) has its own set of required fields.
+  //   The `accountType` field acts as the DISCRIMINATOR — its value tells MongoDB
+  //   which schema branch to validate the document against.
+  //
+  // MongoDB enforces this using `oneOf`: a document must match EXACTLY ONE of the
+  // three schemas. Because each schema pins `accountType` to a specific enum value,
+  // MongoDB uses that to select the correct branch and then enforces the fields
+  // required for that branch only.
+  //
+  // Example:
+  //   { accountType: "SAVINGS", annualInterestRate: 3.5, ... }  → matched to SavingsAccount schema
+  //   { accountType: "CURRENT", overdraftLimit: 500, ... }      → matched to CurrentAccount schema
+  //   { accountType: "ISA",     taxYear: "2025-2026", ... }     → matched to ISAAccount schema
+  //
+  // NOTE: Avro itself does not support if/then/else conditionals. The union of records
+  // below represents the polymorphic intent. The converter script is responsible for
+  // translating this into MongoDB's `oneOf` + discriminator pattern.
+
+  "doc": "Polymorphic bank account schema. One collection stores Savings, Current, and ISA accounts. The accountType field determines which fields are required.",
+
+  // ─── Fields shared across ALL account types ───────────────────────────────
   "fields": [
     {
       "name": "accountNumber",
       "type": "string",
-      "doc": "Unique account identifier"
+      "doc": "Unique account identifier, e.g. SA-00123456"
     },
     {
       "name": "customerId",
       "type": "string",
-      "doc": "Reference to the owning customer"
+      "doc": "Reference to the owning customer document"
     },
     {
       "name": "balance",
@@ -22,16 +47,45 @@
     {
       "name": "openedDate",
       "type": "string",
-      "doc": "Date the account was opened (ISO 8601)"
+      "doc": "Date the account was opened (ISO 8601), e.g. 2022-06-15"
     },
+
+    // ─── DISCRIMINATOR FIELD ─────────────────────────────────────────────────
+    // This is the key field. Its value determines which conditional schema applies.
+    // In the generated MongoDB validator, each oneOf branch pins this field to a
+    // specific value (e.g. { enum: ["SAVINGS"] }), so MongoDB knows which branch
+    // to validate against.
+    {
+      "name": "accountType",
+      "type": {
+        "type": "enum",
+        "name": "AccountType",
+        "symbols": ["SAVINGS", "CURRENT", "ISA"]
+      },
+      "doc": "DISCRIMINATOR — determines which account-type-specific fields are required. SAVINGS, CURRENT, or ISA."
+    },
+
+    // ─── CONDITIONAL FIELDS (account-type-specific) ──────────────────────────
+    // The union below defines three record variants — one per account type.
+    // Only the fields in the matching variant are required for a given document.
+    // Avro uses the record name as the implicit type tag; the converter maps
+    // each record to a oneOf branch in the MongoDB validator.
     {
       "name": "accountDetails",
-      "doc": "Account-type-specific fields. The record variant determines the account type and its required fields.",
+      "doc": "Conditional fields — the required fields differ based on accountType. Only one variant will apply to any given document.",
       "type": [
+
+        // ── Branch 1: SAVINGS ──────────────────────────────────────────────
+        // Applies when accountType = "SAVINGS".
+        // Required: annualInterestRate, monthlyWithdrawalLimit, minimumBalance.
+        // x-discriminator-field: tells the converter which top-level field is the discriminator.
+        // x-discriminator-value: tells the converter which value of that field maps to this branch.
         {
           "type": "record",
           "name": "SavingsAccount",
-          "doc": "Fields applicable only to savings accounts",
+          "x-discriminator-field": "accountType",
+          "x-discriminator-value": "SAVINGS",
+          "doc": "Conditional fields for SAVINGS accounts only",
           "fields": [
             {
               "name": "annualInterestRate",
@@ -50,10 +104,16 @@
             }
           ]
         },
+
+        // ── Branch 2: CURRENT ──────────────────────────────────────────────
+        // Applies when accountType = "CURRENT".
+        // Required: overdraftLimit, monthlyFee, chequeBookEnabled.
         {
           "type": "record",
           "name": "CurrentAccount",
-          "doc": "Fields applicable only to current accounts",
+          "x-discriminator-field": "accountType",
+          "x-discriminator-value": "CURRENT",
+          "doc": "Conditional fields for CURRENT accounts only",
           "fields": [
             {
               "name": "overdraftLimit",
@@ -72,20 +132,26 @@
             }
           ]
         },
+
+        // ── Branch 3: ISA ──────────────────────────────────────────────────
+        // Applies when accountType = "ISA".
+        // Required: taxYear, annualAllowanceUsed, isaType.
         {
           "type": "record",
           "name": "ISAAccount",
-          "doc": "Fields applicable only to Individual Savings Accounts (ISA)",
+          "x-discriminator-field": "accountType",
+          "x-discriminator-value": "ISA",
+          "doc": "Conditional fields for ISA accounts only",
           "fields": [
             {
               "name": "taxYear",
               "type": "string",
-              "doc": "Tax year this ISA is associated with, e.g. '2025-2026'"
+              "doc": "Tax year this ISA is associated with, e.g. 2025-2026"
             },
             {
               "name": "annualAllowanceUsed",
               "type": "double",
-              "doc": "Amount of the annual ISA allowance (£20,000) already subscribed"
+              "doc": "Amount of the £20,000 annual ISA allowance already subscribed"
             },
             {
               "name": "isaType",
@@ -94,10 +160,11 @@
                 "name": "ISAType",
                 "symbols": ["CASH", "STOCKS_AND_SHARES", "LIFETIME", "INNOVATIVE_FINANCE"]
               },
-              "doc": "Sub-type of ISA"
+              "doc": "Sub-type of ISA product"
             }
           ]
         }
+
       ]
     }
   ]
