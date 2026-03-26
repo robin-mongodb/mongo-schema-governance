@@ -1,0 +1,104 @@
+{
+  "type": "record",
+  "name": "BankAccount",
+  "namespace": "com.natwest.account",
+  "doc": "Bank account schema with conditional fields based on account type (Savings, Current, ISA)",
+  "fields": [
+    {
+      "name": "accountNumber",
+      "type": "string",
+      "doc": "Unique account identifier"
+    },
+    {
+      "name": "customerId",
+      "type": "string",
+      "doc": "Reference to the owning customer"
+    },
+    {
+      "name": "balance",
+      "type": "double",
+      "doc": "Current account balance in GBP"
+    },
+    {
+      "name": "openedDate",
+      "type": "string",
+      "doc": "Date the account was opened (ISO 8601)"
+    },
+    {
+      "name": "accountDetails",
+      "doc": "Account-type-specific fields. The record variant determines the account type and its required fields.",
+      "type": [
+        {
+          "type": "record",
+          "name": "SavingsAccount",
+          "doc": "Fields applicable only to savings accounts",
+          "fields": [
+            {
+              "name": "annualInterestRate",
+              "type": "double",
+              "doc": "AER (Annual Equivalent Rate) as a percentage, e.g. 3.5 means 3.5%"
+            },
+            {
+              "name": "monthlyWithdrawalLimit",
+              "type": "int",
+              "doc": "Maximum number of free withdrawals allowed per month"
+            },
+            {
+              "name": "minimumBalance",
+              "type": "double",
+              "doc": "Minimum balance required to earn interest"
+            }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "CurrentAccount",
+          "doc": "Fields applicable only to current accounts",
+          "fields": [
+            {
+              "name": "overdraftLimit",
+              "type": "double",
+              "doc": "Approved overdraft limit in GBP (0 if no overdraft facility)"
+            },
+            {
+              "name": "monthlyFee",
+              "type": "double",
+              "doc": "Monthly account maintenance fee in GBP"
+            },
+            {
+              "name": "chequeBookEnabled",
+              "type": "boolean",
+              "doc": "Whether a cheque book has been issued for this account"
+            }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "ISAAccount",
+          "doc": "Fields applicable only to Individual Savings Accounts (ISA)",
+          "fields": [
+            {
+              "name": "taxYear",
+              "type": "string",
+              "doc": "Tax year this ISA is associated with, e.g. '2025-2026'"
+            },
+            {
+              "name": "annualAllowanceUsed",
+              "type": "double",
+              "doc": "Amount of the annual ISA allowance (£20,000) already subscribed"
+            },
+            {
+              "name": "isaType",
+              "type": {
+                "type": "enum",
+                "name": "ISAType",
+                "symbols": ["CASH", "STOCKS_AND_SHARES", "LIFETIME", "INNOVATIVE_FINANCE"]
+              },
+              "doc": "Sub-type of ISA"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
