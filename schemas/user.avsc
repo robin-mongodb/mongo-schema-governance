@@ -2,26 +2,45 @@
   "type": "record",
   "name": "User",
   "namespace": "com.natwest.user",
-  "doc": "User schema v1.",
+  "doc": "Versioned user schema. v1: userId and email. v2: adds yearOfBirth.",
   "fields": [
-    {
-      "name": "userId",
-      "type": "string",
-      "doc": "Unique user identifier"
-    },
-    {
-      "name": "email",
-      "type": "string",
-      "doc": "User's email address"
-    },
     {
       "name": "version",
       "type": {
         "type": "enum",
         "name": "SchemaVersion",
-        "symbols": ["v1"]
+        "symbols": ["v1", "v2"]
       },
-      "doc": "Schema version"
+      "doc": "Schema version — determines which fields are required."
+    },
+    {
+      "name": "versionedFields",
+      "doc": "Fields required per schema version.",
+      "type": [
+        {
+          "type": "record",
+          "name": "UserV1",
+          "x-discriminator-field": "version",
+          "x-discriminator-value": "v1",
+          "doc": "v1 fields",
+          "fields": [
+            { "name": "userId", "type": "string", "doc": "Unique user identifier" },
+            { "name": "email",  "type": "string", "doc": "User's email address" }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "UserV2",
+          "x-discriminator-field": "version",
+          "x-discriminator-value": "v2",
+          "doc": "v2 fields — adds yearOfBirth",
+          "fields": [
+            { "name": "userId",      "type": "string", "doc": "Unique user identifier" },
+            { "name": "email",       "type": "string", "doc": "User's email address" },
+            { "name": "yearOfBirth", "type": "int",    "doc": "User's year of birth, e.g. 1990" }
+          ]
+        }
+      ]
     }
   ]
 }
