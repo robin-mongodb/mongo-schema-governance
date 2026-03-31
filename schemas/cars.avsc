@@ -1,0 +1,27 @@
+{
+  "type": "record",
+  "name": "Car",
+  "namespace": "com.natwest.car",
+  "doc": "Car schema v1.",
+  "fields": [
+    {
+      "name": "schemaVersion",
+      "type": {
+        "type": "enum",
+        "name": "SchemaVersion",
+        "symbols": ["v1"]
+      },
+      "doc": "Schema version"
+    },
+    {
+      "name": "make",
+      "type": "string",
+      "doc": "Car manufacturer, e.g. Toyota"
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "doc": "Car model, e.g. Corolla"
+    }
+  ]
+}
