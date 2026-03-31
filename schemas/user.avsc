@@ -1,0 +1,27 @@
+{
+  "type": "record",
+  "name": "User",
+  "namespace": "com.natwest.user",
+  "doc": "User schema v1.",
+  "fields": [
+    {
+      "name": "userId",
+      "type": "string",
+      "doc": "Unique user identifier"
+    },
+    {
+      "name": "email",
+      "type": "string",
+      "doc": "User's email address"
+    },
+    {
+      "name": "version",
+      "type": {
+        "type": "enum",
+        "name": "SchemaVersion",
+        "symbols": ["v1"]
+      },
+      "doc": "Schema version"
+    }
+  ]
+}
