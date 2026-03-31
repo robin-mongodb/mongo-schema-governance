@@ -15,6 +15,7 @@
     },
     {
       "name": "versionedFields",
+      "x-flatten": true,
       "doc": "Fields required per schema version.",
       "type": [
         {

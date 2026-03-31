@@ -120,6 +120,7 @@ function getDiscriminatorBranches(fieldType) {
 function convertPolymorphicRecord(avroSchema) {
   // ── Step 1: Find the field whose union carries discriminator metadata ────────
   let polymorphicFieldName = null;   // field name holding the union, e.g. "accountDetails"
+  let polymorphicField = null;       // the full field object (to read x-flatten)
   let discriminatorFieldName = null; // the sibling field acting as discriminator, e.g. "accountType"
   let branches = null;
 
@@ -127,6 +128,7 @@ function convertPolymorphicRecord(avroSchema) {
     const branchRecords = getDiscriminatorBranches(field.type);
     if (branchRecords) {
       polymorphicFieldName = field.name;
+      polymorphicField = field;
       branches = branchRecords;
       discriminatorFieldName = branchRecords[0]["x-discriminator-field"];
       break;
@@ -164,7 +166,12 @@ function convertPolymorphicRecord(avroSchema) {
   }
 
   // ── Step 3: Build one branch per discriminator variant ───────────────────────
-  // Each branch = shared fields + pinned discriminator value + branch-specific fields
+  // Each branch = shared fields + pinned discriminator value + branch-specific fields.
+  //
+  // x-flatten: true on the polymorphic field promotes branch fields to the top level
+  // of the document instead of nesting them under the polymorphic field name.
+  const flatten = polymorphicField["x-flatten"] === true;
+
   const oneOfBranches = branches.map((branch) => {
     const discriminatorValue = branch["x-discriminator-value"]; // e.g. "SAVINGS"
 
@@ -181,32 +188,47 @@ function convertPolymorphicRecord(avroSchema) {
       branchProperties[field.name] = property;
     }
 
-    return {
-      bsonType: "object",
-      // Every branch requires the shared fields + discriminator + the polymorphic field
-      required: [...sharedRequired, discriminatorFieldName, polymorphicFieldName],
-      properties: {
-        ...sharedProperties,
-
-        // Discriminator field pinned to this branch's value.
-        // MongoDB uses this to select exactly one oneOf branch.
-        [discriminatorFieldName]: {
-          bsonType: "string",
-          enum: [discriminatorValue],
-          description: `Identifies this document as a ${discriminatorValue} account`,
-        },
-
-        // Nested object containing the branch-specific required fields
-        [polymorphicFieldName]: {
-          bsonType: "object",
-          required: branchRequired,
-          properties: branchProperties,
-          additionalProperties: false,
-          ...(branch.doc && { title: branch.doc }),
-        },
-      },
-      additionalProperties: false,
+    // Pinned discriminator property — same in both flatten and nested modes
+    const pinnedDiscriminator = {
+      bsonType: "string",
+      enum: [discriminatorValue],
+      description: `Identifies this document as a ${discriminatorValue} schema version`,
     };
+
+    if (flatten) {
+      // Flat mode: branch fields are promoted to the top level.
+      // Document shape: { version: "v1", userId: "...", email: "..." }
+      return {
+        bsonType: "object",
+        required: [...sharedRequired, discriminatorFieldName, ...branchRequired],
+        properties: {
+          ...sharedProperties,
+          [discriminatorFieldName]: pinnedDiscriminator,
+          ...branchProperties,
+        },
+        additionalProperties: false,
+        ...(branch.doc && { title: branch.doc }),
+      };
+    } else {
+      // Nested mode (default): branch fields live inside the polymorphic field.
+      // Document shape: { accountType: "SAVINGS", accountDetails: { annualInterestRate: ... } }
+      return {
+        bsonType: "object",
+        required: [...sharedRequired, discriminatorFieldName, polymorphicFieldName],
+        properties: {
+          ...sharedProperties,
+          [discriminatorFieldName]: pinnedDiscriminator,
+          [polymorphicFieldName]: {
+            bsonType: "object",
+            required: branchRequired,
+            properties: branchProperties,
+            additionalProperties: false,
+            ...(branch.doc && { title: branch.doc }),
+          },
+        },
+        additionalProperties: false,
+      };
+    }
   });
 
   return {
