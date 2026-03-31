@@ -2,26 +2,46 @@
   "type": "record",
   "name": "Car",
   "namespace": "com.natwest.car",
-  "doc": "Car schema v1.",
+  "doc": "Versioned car schema. v1: make and model. v2: adds year.",
   "fields": [
     {
       "name": "schemaVersion",
       "type": {
         "type": "enum",
         "name": "SchemaVersion",
-        "symbols": ["v1"]
+        "symbols": ["v1", "v2"]
       },
-      "doc": "Schema version"
+      "doc": "Schema version — determines which fields are required."
     },
     {
-      "name": "make",
-      "type": "string",
-      "doc": "Car manufacturer, e.g. Toyota"
-    },
-    {
-      "name": "model",
-      "type": "string",
-      "doc": "Car model, e.g. Corolla"
+      "name": "versionedFields",
+      "x-flatten": true,
+      "doc": "Fields required per schema version.",
+      "type": [
+        {
+          "type": "record",
+          "name": "CarV1",
+          "x-discriminator-field": "schemaVersion",
+          "x-discriminator-value": "v1",
+          "doc": "v1 fields",
+          "fields": [
+            { "name": "make",  "type": "string", "doc": "Car manufacturer, e.g. Toyota" },
+            { "name": "model", "type": "string", "doc": "Car model, e.g. Corolla" }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "CarV2",
+          "x-discriminator-field": "schemaVersion",
+          "x-discriminator-value": "v2",
+          "doc": "v2 fields — adds year",
+          "fields": [
+            { "name": "make",  "type": "string", "doc": "Car manufacturer, e.g. Toyota" },
+            { "name": "model", "type": "string", "doc": "Car model, e.g. Corolla" },
+            { "name": "year",  "type": "int",    "doc": "Year of manufacture, e.g. 2022" }
+          ]
+        }
+      ]
     }
   ]
 }
