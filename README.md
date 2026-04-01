@@ -32,6 +32,48 @@ The converter generates a `oneOf` validator where each branch pins the discrimin
 
 Same pattern as polymorphic — use a `version` field as the discriminator. Add `"x-flatten": true` to promote version-specific fields to the top level of the document instead of nesting them. See `schemas/user.avsc` for an example.
 
+## Running the demo via GitHub Actions
+
+### 1. Fork the repo
+
+Click **Fork** on GitHub to copy the repo to your own profile.
+
+### 2. Create a MongoDB Atlas cluster
+
+A free tier cluster works fine. Once created, get your connection string from **Connect → Drivers**:
+
+```
+mongodb+srv://<user>:<password>@<cluster>.mongodb.net
+```
+
+### 3. Add the connection string as a repository secret
+
+In your forked repo go to **Settings → Secrets and variables → Actions → New repository secret**:
+
+- Name: `MONGODB_URI`
+- Value: your connection string from step 2
+
+### 4. Trigger the workflow
+
+The workflow runs automatically when a `.avsc` file is pushed to `main`. Make a small change to any schema file and push it to trigger it:
+
+```bash
+git clone https://github.com/<your-username>/mongo-schema-governance.git
+cd mongo-schema-governance
+
+# Touch any schema file to trigger the workflow
+git commit --allow-empty -m "Trigger schema pipeline"
+git push origin main
+```
+
+Go to the **Actions** tab in your repo to watch the pipeline run. Once complete, the `customer`, `bank_account`, `user`, and `car` collections will exist in your `schema_governance_demo` database with strict validation enforced.
+
+### 5. Verify in MongoDB Compass
+
+1. Open Compass and connect to your Atlas cluster using the same connection string
+2. Navigate to **schema_governance_demo** — you should see your collections created by the pipeline
+3. Click on any collection and go to the **Validation** tab to inspect the enforced `$jsonSchema` rules
+
 ## Running locally
 
 ```bash
